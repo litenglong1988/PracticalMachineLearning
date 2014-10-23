@@ -1,0 +1,102 @@
+---
+title: "Prediction Assignment Writeup"
+author: "ltl"
+date: "Thursday, October 23, 2014"
+output: html_document
+---
+
+### Introduction
+
+In this document, I have used the data from Human Activity Recognition (HAR). the goal was to train a model to predict the manner(variable "classe") in which they did the exercise
+
+The training data for this project are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv]
+
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv]
+
+### reading and process the data
+
+```{r, results='hide'}
+setwd("D:\\study\\coursera\\8_Practical Machine Learning\\exercise\\project")
+library(knitr);library(caret);library(randomForest)
+opts_chunk$set( cache = TRUE )
+```
+
+- load data
+- Remove columns with NA values
+- Remove columns 1 to 7, which don't help in classifying data
+- Remove near zero variance predictors, use function nearZeroVar, but "classe" is excluded 
+
+```{r, results='hide'}
+# load data
+pml.training <- read.csv("pml-training.csv", header = TRUE, na.strings=c("NA",""))
+pml.testing <- read.csv("pml-testing.csv", header = TRUE, na.strings=c("NA",""))
+# Remove columns with NA values
+colsel <- apply(pml.training,2,function(x) {sum(is.na(x))})
+pml.training <- pml.training[, which(colsel == 0)]
+pml.testing <- pml.testing[,  which(colsel == 0)]
+# Remeve columns 1 to 7, because they don't help in classifying data
+pml.training <- pml.training[, -c(1:7)]
+pml.testing <- pml.testing[, -c(1:7)]
+```
+
+```{r}
+# Remove near zero variance predictors, "classe" is excluded 
+nearZeroVar(pml.training[,-53], saveMetrics = TRUE)$nzv
+```
+
+we can see all the columns' variance are not near zero, then we have 53 columns remain
+
+### Data Partition
+
+split the data to training and testing
+
+```{r}
+inTrain <- createDataPartition(y = pml.training$classe, p = 0.7, list = FALSE)
+training <- pml.training[inTrain, ]
+testing <- pml.training[-inTrain, ]
+```
+
+### random forest and cross validation
+
+```{r}
+# set cross validation in trainControl function
+trainControl <- trainControl(method = "cv", number = 5) 
+modFit <- train(classe ~ ., method = "rf", data = training, trControl = trainControl)
+modFit$finalModel
+```
+
+### Predict model on the testing data and measure of out of sample error
+
+we show the confusion matrix as follows, it contain the out of sample error:
+
+```{r}
+pred <- predict(modFit, newdata = testing)
+confusionMatrix(pred, testing$classe)
+```
+
+### apply the model to the 20 test cases which has given in the question
+
+```{r}
+pred.test <- predict(modFit, newdata = pml.testing)
+# show the result
+pred.test
+```
+
+### output the prediction to 20 text file to answer the project 2
+
+```{r}
+# create output function
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+# output the file
+pml_write_files(pred.test)
+```
